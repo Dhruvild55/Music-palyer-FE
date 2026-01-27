@@ -5,7 +5,7 @@ import { api } from "../../context/AuthContext";
 // HELP: Get your API Key at https://console.cloud.google.com/
 const YT_API_KEY = 'AIzaSyBQp-GWu1M0TsiAl_GN7ZCD5Nxu7c75IBc';
 
-const Search = ({ onAdd }) => {
+const Search = ({ onAdd, queue = [], currentSong = null }) => {
     const [query, setQuery] = useState("");
     const [results, setResults] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -102,8 +102,19 @@ const Search = ({ onAdd }) => {
                     results.map((song) => (
                         <div
                             key={song.id}
-                            className="flex items-center gap-4 p-3 rounded-xl hover:bg-white/5 transition-all group cursor-pointer"
-                            onClick={() => onAdd(song)}
+                            className={`flex items-center gap-4 p-3 rounded-xl transition-all group ${(queue.some(s => s.id === song.id) || (currentSong && currentSong.id === song.id))
+                                    ? 'opacity-40 cursor-default'
+                                    : 'hover:bg-white/5 cursor-pointer'
+                                }`}
+                            onClick={() => {
+                                if (queue.some(s => s.id === song.id) || (currentSong && currentSong.id === song.id)) return;
+                                onAdd(song);
+                                const btn = document.getElementById(`add-btn-${song.id}`);
+                                if (btn) {
+                                    btn.innerHTML = "✓";
+                                    setTimeout(() => btn.innerHTML = "+", 2000);
+                                }
+                            }}
                         >
                             <img src={song.thumbnail} alt={song.title} className="w-12 h-12 rounded-lg object-cover transition-transform group-hover:scale-105" />
                             <div className="flex-1 min-w-0">
@@ -111,37 +122,45 @@ const Search = ({ onAdd }) => {
                                 <p className="text-[10px] font-medium text-slate-500 uppercase truncate">{song.channel}</p>
                             </div>
                             <div className="flex gap-2">
-                                <div className="relative">
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setShowPlaylistMenu(showPlaylistMenu === song.id ? null : song.id);
-                                        }}
-                                        className="text-slate-500 hover:text-blue-500 p-2 transition-colors"
-                                    >
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
-                                    </button>
+                                {(queue.some(s => s.id === song.id) || (currentSong && currentSong.id === song.id)) ? (
+                                    <div className="px-2 py-1 bg-blue-500/10 text-blue-500 text-[8px] font-black uppercase tracking-widest rounded-md whitespace-nowrap">
+                                        In Sequence
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="relative">
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setShowPlaylistMenu(showPlaylistMenu === song.id ? null : song.id);
+                                                }}
+                                                className="text-slate-500 hover:text-blue-500 p-2 transition-colors"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+                                            </button>
 
-                                    {showPlaylistMenu === song.id && (
-                                        <div ref={menuRef} className="absolute right-0 bottom-full mb-4 w-56 card-smooth p-2 z-[60] shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-300">
-                                            <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest p-2 border-b border-white/5">Storage Selection</p>
-                                            <div className="max-h-48 overflow-y-auto custom-scrollbar p-1">
-                                                {playlists.map(p => (
-                                                    <button
-                                                        key={p._id}
-                                                        onClick={(e) => { e.stopPropagation(); addToPlaylist(p._id, song); }}
-                                                        className="w-full text-left p-2.5 rounded-lg hover:bg-white/5 text-[10px] font-bold uppercase tracking-widest transition-all truncate"
-                                                    >
-                                                        {p.name}
-                                                    </button>
-                                                ))}
-                                            </div>
+                                            {showPlaylistMenu === song.id && (
+                                                <div ref={menuRef} className="absolute right-0 bottom-full mb-4 w-56 card-smooth p-2 z-[60] shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-300">
+                                                    <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest p-2 border-b border-white/5">Storage Selection</p>
+                                                    <div className="max-h-48 overflow-y-auto custom-scrollbar p-1">
+                                                        {playlists.map(p => (
+                                                            <button
+                                                                key={p._id}
+                                                                onClick={(e) => { e.stopPropagation(); addToPlaylist(p._id, song); }}
+                                                                className="w-full text-left p-2.5 rounded-lg hover:bg-white/5 text-[10px] font-bold uppercase tracking-widest transition-all truncate"
+                                                            >
+                                                                {p.name}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
-                                    )}
-                                </div>
-                                <div className="text-blue-500 p-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 5l7 7-7 7M5 5l7 7-7 7" /></svg>
-                                </div>
+                                        <div id={`add-btn-${song.id}`} className="text-blue-500 p-2 font-bold text-lg">
+                                            +
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         </div>
                     ))

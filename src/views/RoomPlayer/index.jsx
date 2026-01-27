@@ -70,10 +70,14 @@ const RoomPlayer = () => {
             if (state.currentTime > 0 && playerRef.current) {
                 setCurrentTime(state.currentTime);
                 playerRef.current.seekTo(state.currentTime, true);
-                if (state.isPlaying) {
-                    playerRef.current.playVideo();
-                    setStatus("Playing");
-                }
+            }
+
+            // Sync status immediately
+            setStatus(state.isPlaying ? "Playing" : "Paused");
+            if (state.isPlaying && playerRef.current) {
+                playerRef.current.playVideo();
+            } else if (!state.isPlaying && playerRef.current) {
+                playerRef.current.pauseVideo();
             }
         });
 
@@ -117,6 +121,10 @@ const RoomPlayer = () => {
             setTimeout(() => {
                 setReactions(prev => prev.filter(r => r.id !== reaction.id));
             }, 3000);
+        });
+
+        socket.on('queue_feedback', (fb) => {
+            if (fb.type === 'error') alert(fb.message);
         });
 
         timeUpdateRef.current = setInterval(() => {
@@ -226,8 +234,16 @@ const RoomPlayer = () => {
         }
     };
 
+    const handleRemoveFromQueue = (songId) => {
+        socket.emit('remove_from_queue', { roomId: room, queueId: songId, userId: user?._id, guestId: currentUserId });
+    };
+
+    const handleShuffleQueue = () => {
+        socket.emit('shuffle_queue', { roomId: room, userId: user?._id, guestId: currentUserId });
+    };
+
     return (
-        <div className="min-h-screen text-slate-200 p-4 md:p-8 animate-fade-in max-w-[1800px] mx-auto">
+        <div className="min-h-screen text-slate-200 p-4 md:p-8 animate-fade-in max-w-[1800px] mx-auto overflow-x-hidden">
             {/* Simple Reactions Overlay */}
             <div className="fixed inset-0 pointer-events-none z-40">
                 {reactions && reactions.map(r => (
@@ -238,7 +254,7 @@ const RoomPlayer = () => {
             </div>
 
             {/* Light Interaction Overlay */}
-            {!hasInteracted && (
+            {/* {!hasInteracted && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b0e14]/80 backdrop-blur-sm">
                     <button
                         onClick={() => setHasInteracted(true)}
@@ -247,12 +263,12 @@ const RoomPlayer = () => {
                         Join Session 🎧
                     </button>
                 </div>
-            )}
+            )} */}
 
             <div className="w-full flex flex-col xl:flex-row gap-8">
-                <div className="flex-1 space-y-8">
+                <div className="flex-1 space-y-6 md:space-y-8 min-w-0 w-full">
                     {/* Dynamic Player Card with Ambient Lighting */}
-                    <div className="card-smooth p-8 md:p-12 relative overflow-hidden group">
+                    <div className="card-smooth p-6 md:p-12 relative overflow-hidden group w-full">
                         {/* Ambient Light Bloom */}
                         {currentSong && (
                             <div className="absolute inset-0 opacity-20 pointer-events-none transition-all duration-1000 overflow-hidden">
@@ -269,10 +285,10 @@ const RoomPlayer = () => {
                             SYNC LINK COPIED
                         </div>
 
-                        <div className="flex flex-col lg:flex-row items-center gap-12">
+                        <div className="flex flex-col lg:flex-row items-center gap-8 lg:gap-12">
                             {/* High-Fidelity Vinyl Visual */}
                             <div className="relative shrink-0 perspective-1000">
-                                <div className={`w-64 h-64 rounded-full bg-[#020617] border-4 border-slate-800 flex items-center justify-center shadow-[0_40px_100px_rgba(0,0,0,0.8)] overflow-hidden relative transition-all duration-700 ${status.includes("Playing") ? "animate-spin-slow scale-105" : "scale-100"}`}>
+                                <div className={`w-48 h-48 md:w-64 md:h-64 rounded-full bg-[#020617] border-4 border-slate-800 flex items-center justify-center shadow-[0_40px_100px_rgba(0,0,0,0.8)] overflow-hidden relative transition-all duration-700 ${status.includes("Playing") ? "animate-spin-slow scale-105" : "scale-100"}`}>
                                     {/* Record Texture & Grooves */}
                                     <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,_transparent_40%,_black_41%,_transparent_42%,_black_43%,_transparent_44%)]"></div>
 
@@ -292,7 +308,7 @@ const RoomPlayer = () => {
                                 </div>
 
                                 {/* Turntable Needle (Static for minimalist look but adds detail) */}
-                                <div className={`absolute -top-4 -right-4 w-20 h-2 bg-slate-700 rounded-full origin-left transition-all duration-700 ${status.includes("Playing") ? "rotate-45" : "rotate-0 shadow-lg"}`}></div>
+                                <div className={`absolute -top-4 -right-2 md:-right-4 w-16 md:w-20 h-2 bg-slate-700 rounded-full origin-left transition-all duration-700 ${status.includes("Playing") ? "rotate-45" : "rotate-0 shadow-lg"}`}></div>
                             </div>
 
                             <div className="flex-1 min-w-0 space-y-6 text-center lg:text-left">
@@ -308,7 +324,7 @@ const RoomPlayer = () => {
                                         </div>
                                     </div>
                                     <p className="text-[11px] font-medium text-slate-500 italic mb-4 max-w-2xl px-1">{roomMeta.description || "Synthesizing broadcast pulse..."}</p>
-                                    <h2 className="text-xl font-bold tracking-tight text-white truncate leading-tight">
+                                    <h2 className="text-lg md:text-xl font-bold tracking-tight text-white line-clamp-2 leading-tight min-h-[3.5rem] lg:min-h-0">
                                         {currentSong ? currentSong.title : "Waiting for playback..."}
                                     </h2>
                                     <p className="text-sm font-medium text-slate-500 mt-1 truncate">
@@ -316,8 +332,8 @@ const RoomPlayer = () => {
                                     </p>
                                 </div>
 
-                                <div className="space-y-3">
-                                    <div className="relative group/progress">
+                                <div className="space-y-3 w-full">
+                                    <div className="relative group/progress w-full flex items-center h-4">
                                         <input
                                             type="range"
                                             min="0" max={duration}
@@ -325,9 +341,9 @@ const RoomPlayer = () => {
                                             onChange={handleScrub}
                                             onMouseUp={handleSeekComplete}
                                             onTouchEnd={handleSeekComplete}
-                                            className={`w-full h-1.5 bg-slate-800 rounded-full appearance-none cursor-pointer accent-blue-500 transition-all ${!isDJ && 'pointer-events-none'}`}
+                                            className={`w-full h-1 md:h-1.5 bg-slate-800 rounded-full appearance-none cursor-pointer accent-blue-500 transition-all z-10 ${!isDJ && 'pointer-events-none'}`}
                                         />
-                                        <div className="absolute top-0 left-0 h-1.5 bg-blue-500 rounded-full pointer-events-none shadow-[0_0_15px_rgba(59,130,246,0.5)] transition-all" style={{ width: `${(currentTime / duration) * 100}%` }}></div>
+                                        <div className="absolute left-0 h-1 md:h-1.5 bg-blue-500 rounded-full pointer-events-none shadow-[0_0_15px_rgba(59,130,246,0.5)] transition-all" style={{ width: `${(currentTime / duration) * 100}%` }}></div>
                                     </div>
                                     <div className="flex justify-between text-[10px] font-black text-slate-600 uppercase tracking-widest px-1">
                                         <span>{formatTime(currentTime)}</span>
@@ -337,16 +353,16 @@ const RoomPlayer = () => {
 
                                 <div className="flex flex-wrap items-center justify-center lg:justify-start gap-4 pt-4">
                                     {isDJ && (
-                                        <div className="flex gap-4">
-                                            <button onClick={togglePlayPause} className="btn-primary p-4 rounded-2xl shadow-lg">
-                                                {status.includes("Playing") ? <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></svg> : <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>}
+                                        <div className="flex gap-3 md:gap-4">
+                                            <button onClick={togglePlayPause} className="btn-primary p-3 md:p-4 rounded-xl md:rounded-2xl shadow-lg">
+                                                {status.includes("Playing") ? <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 md:h-6 md:w-6" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></svg> : <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 md:h-6 md:w-6" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>}
                                             </button>
-                                            <button onClick={() => socket.emit("next_song", { roomId: room, userId: user?._id, guestId: currentUserId })} className="card-smooth p-4 rounded-2xl hover:bg-white/5">
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" /></svg>
+                                            <button onClick={() => socket.emit("next_song", { roomId: room, userId: user?._id, guestId: currentUserId })} className="card-smooth p-3 md:p-4 rounded-xl md:rounded-2xl hover:bg-white/5">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 md:h-6 md:w-6" fill="currentColor" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" /></svg>
                                             </button>
                                             <div className="relative">
-                                                <button onClick={() => setShowPlaylistLoad(!showPlaylistLoad)} className="card-smooth p-4 rounded-2xl hover:bg-white/5 flex items-center gap-2">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                                                <button onClick={() => setShowPlaylistLoad(!showPlaylistLoad)} className="card-smooth p-3 md:p-4 rounded-xl md:rounded-2xl hover:bg-white/5 flex items-center gap-2">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 md:h-6 md:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
                                                 </button>
                                                 {showPlaylistLoad && (
                                                     <div className="absolute left-0 bottom-full mb-4 w-64 card-smooth p-4 z-50 shadow-2xl animate-in slide-in-from-bottom-2">
@@ -404,11 +420,11 @@ const RoomPlayer = () => {
                         </div>
                     </div>
 
-                    <Search onAdd={handleAddSong} />
+                    <Search onAdd={handleAddSong} queue={queue} currentSong={currentSong} />
                 </div>
 
                 <div className="w-full xl:w-[400px] space-y-8 flex flex-col xl:sticky xl:top-8 self-start h-fit">
-                    <Queue queue={queue} />
+                    <Queue queue={queue} isDJ={isDJ} onRemove={handleRemoveFromQueue} onShuffle={handleShuffleQueue} />
                     <Chat roomId={roomId} username={username} />
                 </div>
             </div>
