@@ -3,9 +3,11 @@ import axios from 'axios';
 
 const AuthContext = createContext();
 
-// Set default axios config
-axios.defaults.baseURL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-axios.defaults.withCredentials = true;
+// Create a dedicated axios instance for internal API calls
+export const api = axios.create({
+    baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000',
+    withCredentials: true
+});
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
@@ -15,7 +17,7 @@ export const AuthProvider = ({ children }) => {
         // Check if user is logged in on mount
         const checkLoggedIn = async () => {
             try {
-                const res = await axios.get('/api/auth/me');
+                const res = await api.get('/api/auth/me');
                 if (res.data.status === 'success') {
                     setUser(res.data.data.user);
                 }
@@ -30,7 +32,7 @@ export const AuthProvider = ({ children }) => {
     }, []);
 
     const signup = async (userData) => {
-        const res = await axios.post('/api/auth/signup', userData);
+        const res = await api.post('/api/auth/signup', userData);
         if (res.data.status === 'success') {
             setUser(res.data.data.user);
             return res.data.data.user;
@@ -38,7 +40,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     const login = async (email, password) => {
-        const res = await axios.post('/api/auth/login', { email, password });
+        const res = await api.post('/api/auth/login', { email, password });
         if (res.data.status === 'success') {
             setUser(res.data.data.user);
             return res.data.data.user;
@@ -46,7 +48,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     const logout = async () => {
-        await axios.get('/api/auth/logout');
+        await api.get('/api/auth/logout');
         setUser(null);
     };
 
