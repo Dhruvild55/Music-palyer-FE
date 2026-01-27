@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, Link } from "react-router-dom";
 import { SocketProvider, useSocket } from "../../context/SocketContext";
 import { api, useAuth } from "../../context/AuthContext";
 import YouTube from "react-youtube";
@@ -265,7 +265,7 @@ const RoomPlayer = () => {
             </div>
 
             {/* Light Interaction Overlay */}
-            {/* {!hasInteracted && (
+            {!hasInteracted && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b0e14]/80 backdrop-blur-sm">
                     <button
                         onClick={() => setHasInteracted(true)}
@@ -274,7 +274,7 @@ const RoomPlayer = () => {
                         Join Session 🎧
                     </button>
                 </div>
-            )} */}
+            )}
 
             <div className="w-full flex flex-col xl:flex-row gap-8">
                 <div className="flex-1 space-y-6 md:space-y-8 min-w-0 w-full">
@@ -420,9 +420,15 @@ const RoomPlayer = () => {
                             <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Listeners</p>
                             <div className="flex -space-x-2">
                                 {listeners.map((user) => (
-                                    <div key={user.id} className="w-8 h-8 rounded-lg border-2 border-[#0b0e14] flex items-center justify-center text-[10px] font-bold shadow-lg transition-transform hover:-translate-y-1" style={{ backgroundColor: user.color }} title={user.name}>
+                                    <Link
+                                        key={user.id}
+                                        to={user.userId ? `/profile/${user.userId}` : '#'}
+                                        className="w-8 h-8 rounded-lg border-2 border-[#0b0e14] flex items-center justify-center text-[10px] font-bold shadow-lg transition-transform hover:-translate-y-1 hover:z-10"
+                                        style={{ backgroundColor: user.color }}
+                                        title={`${user.name}${user.userId ? ' - Click to view profile' : ''}`}
+                                    >
                                         {user.name[0].toUpperCase()}
-                                    </div>
+                                    </Link>
                                 ))}
                             </div>
                         </div>

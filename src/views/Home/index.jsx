@@ -3,6 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { useSocket } from "../../context/SocketContext";
 import { useAuth } from "../../context/AuthContext";
 import PlaylistTab from "./PlaylistTab";
+import FriendActivity from "../../components/FriendActivity";
 
 const Home = () => {
     const socket = useSocket();
@@ -76,7 +77,13 @@ const Home = () => {
                                 <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-[#0b0e14]"></div>
                             </div>
                             <div>
-                                <h2 className="text-xl font-bold tracking-tight">{user ? user.username : "Guest User"}</h2>
+                                {user ? (
+                                    <Link to={`/profile/${user._id}`} className="hover:text-blue-400 transition-colors">
+                                        <h2 className="text-xl font-bold tracking-tight">{user.username}</h2>
+                                    </Link>
+                                ) : (
+                                    <h2 className="text-xl font-bold tracking-tight">Guest User</h2>
+                                )}
                                 <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest">{user ? "Authenticated" : "Temporary Session"}</p>
                             </div>
                             {user && (
@@ -265,8 +272,9 @@ const Home = () => {
                             )}
                         </div>
                     ) : (
-                        <div className="animate-in fade-in duration-500">
+                        <div className="animate-in fade-in duration-500 space-y-8">
                             <PlaylistTab />
+                            <FriendActivity />
                         </div>
                     )}
                 </div>
