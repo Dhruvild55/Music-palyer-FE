@@ -43,6 +43,7 @@ const RoomPlayer = () => {
     const [roomOwnerId, setRoomOwnerId] = useState(null);
     const [creatorId, setCreatorId] = useState(null);
     const timeUpdateRef = useRef(null);
+    const shadowAudioRef = useRef(null);
 
     const nickname = user ? user.username : (localStorage.getItem('streamvibe_name') || "Guest");
     const userColor = user ? user.avatarColor : (localStorage.getItem('streamvibe_color') || "#3b82f6");
@@ -126,6 +127,16 @@ const RoomPlayer = () => {
         socket.on('queue_feedback', (fb) => {
             if (fb.type === 'error') alert(fb.message);
         });
+
+        // Background Persistence: Silent Shadow Audio
+        // This keeps the PWA alive as an "audio" app when the phone is locked.
+        if (!shadowAudioRef.current) {
+            // A small silent base64 MP3 to trick the OS into keeping the process alive
+            const silentSrc = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhAAQACABAAAABkYXRhAgAAAAEA";
+            const audio = new Audio(silentSrc);
+            audio.loop = true;
+            shadowAudioRef.current = audio;
+        }
 
         timeUpdateRef.current = setInterval(() => {
             if (playerRef.current && playerRef.current.getPlayerState() === 1 && !isDragging.current) {
