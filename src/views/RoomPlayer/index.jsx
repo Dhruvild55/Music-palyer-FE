@@ -49,8 +49,15 @@ const RoomPlayer = () => {
     const timeUpdateRef = useRef(null);
     const shadowAudioRef = useRef(null);
 
-    // Background playback management
-    const { wakeLockActive, mediaSessionReady } = useBackgroundPlayback(currentSong, status.includes("Playing"), currentTime, duration);
+    // Background playback management with Media Session API
+    const { wakeLockActive, mediaSessionReady } = useBackgroundPlayback(
+      currentSong,
+      status.includes("Playing"),
+      currentTime,
+      duration,
+      togglePlayPause, // Pass play/pause callback
+      () => socket.emit("next_song", { roomId: room, userId: user?._id, guestId: currentUserId }) // Pass next callback
+    );
 
     const nickname = user ? user.username : (localStorage.getItem('streamvibe_name') || "Guest");
     const userColor = user ? user.avatarColor : (localStorage.getItem('streamvibe_color') || "#3b82f6");

@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 
-// Hook to manage background playback, wake lock, and media session
-export const useBackgroundPlayback = (currentSong, isPlaying, currentTime, duration) => {
+// Hook to manage background playback using Media Session API
+// This enables lock screen controls and keeps playback alive
+export const useBackgroundPlayback = (currentSong, isPlaying, currentTime, duration, onPlayPause, onNext) => {
   const wakeLockRef = useRef(null);
   const mediaSessionRef = useRef(null);
 
@@ -13,14 +14,6 @@ export const useBackgroundPlayback = (currentSong, isPlaying, currentTime, durat
       if ('wakeLock' in navigator) {
         wakeLockRef.current = await navigator.wakeLock.request('screen');
         console.log('[Wake Lock] Screen kept active during playback');
-
-        // Release when visibility changes
-        document.addEventListener('visibilitychange', () => {
-          if (document.hidden && wakeLockRef.current) {
-            wakeLockRef.current.release();
-            wakeLockRef.current = null;
-          }
-        });
       }
     } catch (err) {
       console.warn('[Wake Lock] Not supported or failed:', err);
@@ -51,51 +44,58 @@ export const useBackgroundPlayback = (currentSong, isPlaying, currentTime, durat
 
     // Set metadata
     if (currentSong) {
-      mediaSession.metadata = new MediaMetadata({
-        title: currentSong.title || 'Now Playing',
-        artist: currentSong.channel || 'Unknown Artist',
-        album: 'StreamVibe',
-        artwork: currentSong.thumbnail ? [
-          {
-            src: currentSong.thumbnail,
-            sizes: '256x256',
-            type: 'image/jpeg'
-          }
-        ] : []
-      });
+      try {
+        mediaSession.metadata = new MediaMetadata({
+          title: currentSong.title || 'Now Playing',
+          artist: currentSong.channel || 'Unknown Artist',
+          album: 'StreamVibe',
+          artwork: currentSong.thumbnail ? [
+            {
+              src: currentSong.thumbnail,
+              sizes: '96x96 128x128 192x192 256x256 384x384 512x512',
+              type: 'image/jpeg'
+            }
+          ] : []
+        });
+        console.log('[Media Session] Metadata updated:', currentSong.title);
+      } catch (err) {
+        console.warn('[Media Session] Metadata update failed:', err);
+      }
     }
 
     // Set playback state
     mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
 
-    // Handle action handlers
+    // Handle lock screen play/pause button
     try {
       mediaSession.setActionHandler('play', () => {
-        console.log('[Media Session] Play requested');
-        // This will be handled by the parent component through socket events
+        console.log('[Media Session] Play button pressed on lock screen');
+        if (onPlayPause) onPlayPause();
       });
 
       mediaSession.setActionHandler('pause', () => {
-        console.log('[Media Session] Pause requested');
-        // This will be handled by the parent component through socket events
+        console.log('[Media Session] Pause button pressed on lock screen');
+        if (onPlayPause) onPlayPause();
       });
 
+      // Handle next track button
       mediaSession.setActionHandler('nexttrack', () => {
-        console.log('[Media Session] Next track requested');
-        // This will be handled by the parent component through socket events
+        console.log('[Media Session] Next button pressed on lock screen');
+        if (onNext) onNext();
       });
 
+      // Handle previous track (optional)
       mediaSession.setActionHandler('previoustrack', () => {
-        console.log('[Media Session] Previous track requested');
+        console.log('[Media Session] Previous button pressed on lock screen');
       });
 
-      // Seekbar support
+      // Handle seekbar on lock screen
       mediaSession.setActionHandler('seekto', (event) => {
         console.log('[Media Session] Seek to:', event.seekTime);
-        // This will be handled by the parent component
+        // Seek will be handled through the parent component
       });
     } catch (err) {
-      console.warn('[Media Session] Action handlers not fully supported:', err);
+      console.warn('[Media Session] Action handlers failed:', err);
     }
 
     mediaSessionRef.current = mediaSession;
@@ -130,27 +130,14 @@ export const useBackgroundPlayback = (currentSong, isPlaying, currentTime, durat
     }
   };
 
-  // Register Service Worker
-  const registerServiceWorker = async () => {
-    try {
-      if ('serviceWorker' in navigator) {
-        const registration = await navigator.serviceWorker.register('/service-worker.js');
-        console.log('[Service Worker] Registered:', registration);
-      }
-    } catch (err) {
-      console.warn('[Service Worker] Registration failed:', err);
-    }
-  };
-
   // Effects
   useEffect(() => {
-    registerServiceWorker();
     requestBackgroundPlayback();
   }, []);
 
   useEffect(() => {
     setupMediaSession();
-  }, [currentSong]);
+  }, [currentSong, onPlayPause, onNext]);
 
   useEffect(() => {
     updatePositionState();
@@ -162,12 +149,6 @@ export const useBackgroundPlayback = (currentSong, isPlaying, currentTime, durat
     } else {
       releaseWakeLock();
     }
-
-    return () => {
-      if (!isPlaying) {
-        releaseWakeLock();
-      }
-    };
   }, [isPlaying]);
 
   return {
