@@ -8,6 +8,7 @@ import Search from "./Search";
 import Queue from "./Queue";
 import DJPermissionsPanel from "../../components/DJPermissionsPanel";
 import SongRequestsTab from "./SongRequests";
+import useBackgroundPlayback from "../../hooks/useBackgroundPlayback";
 
 const RoomPlayer = () => {
     const { roomId } = useParams();
@@ -47,6 +48,9 @@ const RoomPlayer = () => {
     const [creatorId, setCreatorId] = useState(null);
     const timeUpdateRef = useRef(null);
     const shadowAudioRef = useRef(null);
+
+    // Background playback management
+    const { wakeLockActive, mediaSessionReady } = useBackgroundPlayback(currentSong, status.includes("Playing"), currentTime, duration);
 
     const nickname = user ? user.username : (localStorage.getItem('streamvibe_name') || "Guest");
     const userColor = user ? user.avatarColor : (localStorage.getItem('streamvibe_color') || "#3b82f6");
