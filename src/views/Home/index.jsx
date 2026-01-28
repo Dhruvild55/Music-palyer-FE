@@ -12,10 +12,15 @@ const Home = () => {
     const [roomDesc, setRoomDesc] = useState('');
     const [selectedMood, setSelectedMood] = useState('Chill');
     const [filterMood, setFilterMood] = useState('All');
-    const [isPrivate, setIsPrivate] = useState(false);
     const [activeRooms, setActiveRooms] = useState([]);
     const [activeTab, setActiveTab] = useState('rooms');
     const navigate = useNavigate();
+
+    // Notification state
+    const [notification, setNotification] = useState(null);
+    
+    // Join room form state
+    const [joinRoomName, setJoinRoomName] = useState('');
 
     // Profile State (for guests)
     const [nickname, setNickname] = useState(localStorage.getItem('streamvibe_name') || '');
@@ -46,20 +51,39 @@ const Home = () => {
         }
 
         if (trimmedName) {
+            // Listen for room_created before navigating
+            const onRoomCreated = (data) => {
+                console.log('Room created successfully:', data);
+                socket.off('room_created', onRoomCreated);
+                socket.off('error', onCreateError);
+                navigate(`/room/${trimmedName}`);
+            };
+            const onCreateError = (error) => {
+                console.error('Room creation error:', error);
+                socket.off('room_created', onRoomCreated);
+                socket.off('error', onCreateError);
+                setNotification({ type: 'error', message: error?.message || 'Failed to create room' });
+                setTimeout(() => setNotification(null), 3000);
+            };
+
+            socket.once('room_created', onRoomCreated);
+            socket.once('error', onCreateError);
+
             socket.emit('create_room', {
                 roomId: trimmedName,
-                isPublic: !isPrivate,
                 name: roomName.trim(),
                 userId: user?._id,
                 guestId: gid,
                 tags: [selectedMood],
                 description: roomDesc.trim()
             });
-            navigate(`/room/${trimmedName}`);
         }
     };
 
-    const handleJoinRoom = (roomId) => navigate(`/room/${roomId}`);
+
+    const handleJoinRoom = (roomId) => {
+        navigate(`/room/${roomId}`);
+    };
 
     return (
         <div className="min-h-screen text-slate-200 p-6 md:p-12 animate-fade-in">
@@ -279,8 +303,24 @@ const Home = () => {
                     )}
                 </div>
             </div>
+
+            {/* Notification Toast */}
+            {notification && (
+                <div className="fixed bottom-6 right-6 max-w-sm animate-in slide-in-from-bottom-4 z-40">
+                    <div className={`card-smooth p-4 rounded-xl flex items-center gap-3 ${
+                        notification.type === 'error' 
+                            ? 'bg-red-500/20 border border-red-500/30' 
+                            : 'bg-green-500/20 border border-green-500/30'
+                    }`}>
+                        <div className={`w-2 h-2 rounded-full ${notification.type === 'error' ? 'bg-red-500' : 'bg-green-500'}`}></div>
+                        <p className={`text-sm font-medium ${notification.type === 'error' ? 'text-red-400' : 'text-green-400'}`}>
+                            {notification.message}
+                        </p>
+                    </div>
+                </div>
+            )}
         </div>
-    )
+    );
 }
 
 export default Home;

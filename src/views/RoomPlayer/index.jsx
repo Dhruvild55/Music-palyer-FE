@@ -6,6 +6,8 @@ import YouTube from "react-youtube";
 import Chat from "../Chat";
 import Search from "./Search";
 import Queue from "./Queue";
+import DJPermissionsPanel from "../../components/DJPermissionsPanel";
+import SongRequestsTab from "./SongRequests";
 
 const RoomPlayer = () => {
     const { roomId } = useParams();
@@ -27,9 +29,10 @@ const RoomPlayer = () => {
 
     // Room State
     const [isDJ, setIsDJ] = useState(false);
+    const [djPermissions, setDjPermissions] = useState([]);
+    const [songRequests, setSongRequests] = useState([]);
     const [room] = useState(roomId);
     const [status, setStatus] = useState("Paused");
-    const [hasInteracted, setHasInteracted] = useState(false);
     const [queue, setQueue] = useState([]);
     const [currentSong, setCurrentSong] = useState(null);
     const [reactions, setReactions] = useState([]);
@@ -50,6 +53,7 @@ const RoomPlayer = () => {
     const username = nickname;
 
     useEffect(() => {
+        console.log(`[RoomPlayer] Joining room ${room}`);
         socket.emit('join_room', {
             roomId: room,
             userProfile: { name: nickname, color: userColor, userId: user?._id },
@@ -63,14 +67,21 @@ const RoomPlayer = () => {
             setRoomMeta({ tags: state.tags || [], description: state.description || "" });
             setRoomOwnerId(state.owner);
             setCreatorId(state.creatorId);
+            setDjPermissions(state.djPermissions || []);
+            setSongRequests(state.songRequests || []);
 
-            if (state.creatorId && String(state.creatorId) === String(currentUserId)) {
-                setIsDJ(true);
-            }
+            // Check if current user is a DJ (either creator or has djPermissions)
+            const isUserDJ = (state.creatorId && String(state.creatorId) === String(currentUserId)) ||
+                           (state.djPermissions && state.djPermissions.includes(currentUserId));
+            setIsDJ(isUserDJ);
 
-            if (state.currentTime > 0 && playerRef.current) {
-                setCurrentTime(state.currentTime);
-                playerRef.current.seekTo(state.currentTime, true);
+            if (state.currentTime > 0 && playerRef.current && typeof playerRef.current.seekTo === 'function') {
+                try {
+                    setCurrentTime(state.currentTime);
+                    playerRef.current.seekTo(state.currentTime, true);
+                } catch (err) {
+                    console.warn('Seek error on room state:', err);
+                }
             }
 
             // Sync status immediately
@@ -82,6 +93,15 @@ const RoomPlayer = () => {
             }
         });
 
+        socket.on('join_failed', (data) => {
+            const message = data?.message || 'Failed to join room.';
+            console.error('[JoinFailed]', message);
+            
+            // Show error and redirect to home
+            alert(message);
+            navigate('/');
+        });
+
         socket.on('update_listeners', (users) => setListeners(users));
         socket.on('update_queue', (newQueue) => setQueue(newQueue));
         socket.on('receive_play_song', (song) => {
@@ -91,10 +111,14 @@ const RoomPlayer = () => {
         });
 
         socket.on('receive_play', (data) => {
-            if (playerRef.current) {
-                playerRef.current.seekTo(data.time, true);
-                playerRef.current.playVideo();
-                setStatus("Playing");
+            if (playerRef.current && typeof playerRef.current.seekTo === 'function') {
+                try {
+                    playerRef.current.seekTo(data.time, true);
+                    playerRef.current.playVideo();
+                    setStatus("Playing");
+                } catch (err) {
+                    console.warn('Seek error on receive_play:', err);
+                }
             }
         });
 
@@ -106,9 +130,13 @@ const RoomPlayer = () => {
         });
 
         socket.on('receive_seek', (data) => {
-            if (playerRef.current) {
-                playerRef.current.seekTo(data.time, true);
-                setCurrentTime(data.time);
+            if (playerRef.current && typeof playerRef.current.seekTo === 'function') {
+                try {
+                    playerRef.current.seekTo(data.time, true);
+                    setCurrentTime(data.time);
+                } catch (err) {
+                    console.warn('Seek error on receive_seek:', err);
+                }
             }
         });
 
@@ -126,6 +154,26 @@ const RoomPlayer = () => {
 
         socket.on('queue_feedback', (fb) => {
             if (fb.type === 'error') alert(fb.message);
+        });
+
+        socket.on('dj_permissions_updated', (data) => {
+            setDjPermissions(data.djPermissions || []);
+            // Update isDJ status based on new permissions
+            const isUserDJ = (creatorId && String(creatorId) === String(currentUserId)) ||
+                           (data.djPermissions && data.djPermissions.includes(currentUserId));
+            setIsDJ(isUserDJ);
+        });
+
+        socket.on('song_requests_updated', (data) => {
+            setSongRequests(data.songRequests || []);
+        });
+
+        socket.on('request_feedback', (feedback) => {
+            if (feedback.type === 'error') {
+                alert('❌ ' + feedback.message);
+            } else if (feedback.type === 'success') {
+                console.log('✅ Song request submitted successfully');
+            }
         });
 
         // Background Persistence: Silent Shadow Audio
@@ -157,6 +205,9 @@ const RoomPlayer = () => {
             socket.off('receive_seek');
             socket.off('receive_reaction');
             socket.off('room_deleted');
+            socket.off('dj_permissions_updated');
+            socket.off('song_requests_updated');
+            socket.off('request_feedback');
             if (timeUpdateRef.current) clearInterval(timeUpdateRef.current);
         };
     }, [room, socket, duration, nickname, userColor, currentUserId, user, navigate]);
@@ -190,7 +241,13 @@ const RoomPlayer = () => {
     const onPlayerReady = (event) => {
         playerRef.current = event.target;
         setDuration(event.target.getDuration());
-        if (currentTime > 0) event.target.seekTo(currentTime, true);
+        if (currentTime > 0 && event.target && typeof event.target.seekTo === 'function') {
+            try {
+                event.target.seekTo(currentTime, true);
+            } catch (err) {
+                console.warn('Seek error on player ready:', err);
+            }
+        }
         if (status.includes("Playing")) event.target.playVideo();
     };
 
@@ -204,7 +261,13 @@ const RoomPlayer = () => {
     const handleSeekComplete = (e) => {
         if (!isDJ || !playerRef.current) return;
         const newTime = parseFloat(e.target.value);
-        playerRef.current.seekTo(newTime, true);
+        if (typeof playerRef.current.seekTo === 'function') {
+            try {
+                playerRef.current.seekTo(newTime, true);
+            } catch (err) {
+                console.warn('Seek error on handle seek complete:', err);
+            }
+        }
         isDragging.current = false;
         socket.emit('send_seek', { roomId: room, time: newTime, userId: user?._id, guestId: currentUserId });
     };
@@ -253,6 +316,36 @@ const RoomPlayer = () => {
         socket.emit('shuffle_queue', { roomId: room, userId: user?._id, guestId: currentUserId });
     };
 
+    const handleRequestSong = (song) => {
+        console.log('🎤 handleRequestSong called with:', song);
+        socket.emit('request_song', {
+            roomId: room,
+            song,
+            userId: user?._id,
+            guestId: currentUserId,
+            userName: nickname,
+            userColor: userColor
+        });
+    };
+
+    const handleAcceptRequest = (requestId) => {
+        socket.emit('accept_request', {
+            roomId: room,
+            requestId,
+            userId: user?._id,
+            guestId: currentUserId
+        });
+    };
+
+    const handleDeclineRequest = (requestId) => {
+        socket.emit('decline_request', {
+            roomId: room,
+            requestId,
+            userId: user?._id,
+            guestId: currentUserId
+        });
+    };
+
     return (
         <div className="min-h-screen text-slate-200 p-4 md:p-8 animate-fade-in max-w-[1800px] mx-auto overflow-x-hidden">
             {/* Simple Reactions Overlay */}
@@ -263,18 +356,6 @@ const RoomPlayer = () => {
                     </div>
                 ))}
             </div>
-
-            {/* Light Interaction Overlay */}
-            {!hasInteracted && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b0e14]/80 backdrop-blur-sm">
-                    <button
-                        onClick={() => setHasInteracted(true)}
-                        className="btn-primary py-6 px-12 rounded-2xl text-2xl uppercase tracking-[0.2em] shadow-2xl"
-                    >
-                        Join Session 🎧
-                    </button>
-                </div>
-            )}
 
             <div className="w-full flex flex-col xl:flex-row gap-8">
                 <div className="flex-1 space-y-6 md:space-y-8 min-w-0 w-full">
@@ -324,6 +405,15 @@ const RoomPlayer = () => {
 
                             <div className="flex-1 min-w-0 space-y-6 text-center lg:text-left">
                                 <div>
+                                    <button
+                                        onClick={() => navigate('/')}
+                                        className="mb-4 card-smooth p-2 rounded-lg hover:bg-white/5 transition-all inline-flex items-center gap-2 text-slate-400 hover:text-white"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                        </svg>
+                                        <span className="text-xs font-bold uppercase tracking-widest">Back</span>
+                                    </button>
                                     <div className="flex items-center justify-center lg:justify-start gap-4 mb-3">
                                         <p className="text-[10px] font-black text-blue-500 uppercase tracking-[0.3em] bg-blue-500/5 px-3 py-1.5 rounded-lg border border-blue-500/10">#{roomId}</p>
                                         {roomMeta.tags.map(t => (
@@ -415,32 +505,60 @@ const RoomPlayer = () => {
                     </div>
 
                     {/* Listeners Info */}
-                    <div className="card-smooth p-6 flex flex-col md:flex-row items-center justify-between gap-6">
-                        <div className="flex items-center gap-4">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Listeners</p>
-                            <div className="flex -space-x-2">
-                                {listeners.map((user) => (
+                    <div className="card-smooth p-6 space-y-4">
+                        <div className="flex items-center justify-between">
+                            <p className="text-sm font-bold uppercase tracking-widest text-slate-500">Listeners ({listeners.length})</p>
+                        </div>
+                        <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+                            {listeners.length > 0 ? (
+                                listeners.map((user) => (
                                     <Link
                                         key={user.id}
                                         to={user.userId ? `/profile/${user.userId}` : '#'}
-                                        className="w-8 h-8 rounded-lg border-2 border-[#0b0e14] flex items-center justify-center text-[10px] font-bold shadow-lg transition-transform hover:-translate-y-1 hover:z-10"
-                                        style={{ backgroundColor: user.color }}
-                                        title={`${user.name}${user.userId ? ' - Click to view profile' : ''}`}
+                                        className="flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 transition-all group"
                                     >
-                                        {user.name[0].toUpperCase()}
+                                        <div
+                                            className="w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-bold shadow-lg flex-shrink-0"
+                                            style={{ backgroundColor: user.color }}
+                                        >
+                                            {user.name[0].toUpperCase()}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-xs font-bold text-slate-200 truncate group-hover:text-white">{user.name}</p>
+                                            <p className="text-[10px] text-slate-600 uppercase font-black tracking-widest">
+                                                {user.userId ? 'User' : 'Guest'}
+                                            </p>
+                                        </div>
                                     </Link>
-                                ))}
-                            </div>
-                        </div>
-                        <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-500 bg-blue-500/5 px-4 py-2 rounded-lg">
-                            {listeners.length} Synchronized Users
+                                ))
+                            ) : (
+                                <p className="text-xs text-slate-600 text-center py-4">No listeners yet</p>
+                            )}
                         </div>
                     </div>
 
-                    <Search onAdd={handleAddSong} queue={queue} currentSong={currentSong} />
+                    <Search onAdd={handleAddSong} onRequestSong={handleRequestSong} isDJ={isDJ} queue={queue} currentSong={currentSong} />
                 </div>
 
                 <div className="w-full xl:w-[400px] space-y-8 flex flex-col xl:sticky xl:top-8 self-start h-fit">
+                    <DJPermissionsPanel
+                        listeners={listeners}
+                        djPermissions={djPermissions}
+                        creatorId={creatorId}
+                        currentUserId={currentUserId}
+                        roomId={room}
+                        socket={socket}
+                        user={user}
+                    />
+                    <SongRequestsTab 
+                        songRequests={songRequests} 
+                        isDJ={isDJ} 
+                        onAcceptRequest={handleAcceptRequest} 
+                        onDeclineRequest={handleDeclineRequest} 
+                        onRequestSong={handleRequestSong}
+                        currentSong={currentSong}
+                        queue={queue}
+                    />
                     <Queue queue={queue} isDJ={isDJ} onRemove={handleRemoveFromQueue} onShuffle={handleShuffleQueue} />
                     <Chat roomId={roomId} username={username} />
                 </div>

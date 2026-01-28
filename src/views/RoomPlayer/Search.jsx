@@ -5,7 +5,7 @@ import { api } from "../../context/AuthContext";
 // HELP: Get your API Key at https://console.cloud.google.com/
 const YT_API_KEY = 'AIzaSyBQp-GWu1M0TsiAl_GN7ZCD5Nxu7c75IBc';
 
-const Search = ({ onAdd, queue = [], currentSong = null }) => {
+const Search = ({ onAdd, onRequestSong, isDJ = false, queue = [], currentSong = null }) => {
     const [query, setQuery] = useState("");
     const [results, setResults] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -63,9 +63,11 @@ const Search = ({ onAdd, queue = [], currentSong = null }) => {
 
             const formattedResults = res.data.items.map(item => ({
                 id: item.id.videoId,
+                queueId: `${item.id.videoId}-${Date.now()}`, // Unique queue ID
                 title: item.snippet.title,
                 channel: item.snippet.channelTitle,
                 thumbnail: item.snippet.thumbnails.default.url,
+                duration: 0 // Duration will be fetched when playing
             }));
 
             setResults(formattedResults);
@@ -128,37 +130,59 @@ const Search = ({ onAdd, queue = [], currentSong = null }) => {
                                     </div>
                                 ) : (
                                     <>
-                                        <div className="relative">
+                                        {isDJ ? (
+                                            <>
+                                                <div className="relative">
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setShowPlaylistMenu(showPlaylistMenu === song.id ? null : song.id);
+                                                        }}
+                                                        className="text-slate-500 hover:text-blue-500 p-2 transition-colors"
+                                                    >
+                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+                                                    </button>
+
+                                                    {showPlaylistMenu === song.id && (
+                                                        <div ref={menuRef} className="absolute right-0 bottom-full mb-4 w-56 card-smooth p-2 z-[60] shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-300">
+                                                            <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest p-2 border-b border-white/5">Storage Selection</p>
+                                                            <div className="max-h-48 overflow-y-auto custom-scrollbar p-1">
+                                                                {playlists.map(p => (
+                                                                    <button
+                                                                        key={p._id}
+                                                                        onClick={(e) => { e.stopPropagation(); addToPlaylist(p._id, song); }}
+                                                                        className="w-full text-left p-2.5 rounded-lg hover:bg-white/5 text-[10px] font-bold uppercase tracking-widest transition-all truncate"
+                                                                    >
+                                                                        {p.name}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div id={`add-btn-${song.id}`} className="text-blue-500 p-2 font-bold text-lg cursor-pointer hover:text-blue-400 transition-colors">
+                                                    +
+                                                </div>
+                                            </>
+                                        ) : (
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    setShowPlaylistMenu(showPlaylistMenu === song.id ? null : song.id);
+                                                    console.log('📨 Requesting song:', song);
+                                                    onRequestSong(song);
+                                                    const btn = document.getElementById(`request-btn-${song.id}`);
+                                                    if (btn) {
+                                                        btn.innerHTML = "✓ Requested";
+                                                        btn.disabled = true;
+                                                        btn.classList.add('opacity-60');
+                                                    }
                                                 }}
-                                                className="text-slate-500 hover:text-blue-500 p-2 transition-colors"
+                                                id={`request-btn-${song.id}`}
+                                                className="px-3 py-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 hover:text-blue-300 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all"
                                             >
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+                                                Request
                                             </button>
-
-                                            {showPlaylistMenu === song.id && (
-                                                <div ref={menuRef} className="absolute right-0 bottom-full mb-4 w-56 card-smooth p-2 z-[60] shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-300">
-                                                    <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest p-2 border-b border-white/5">Storage Selection</p>
-                                                    <div className="max-h-48 overflow-y-auto custom-scrollbar p-1">
-                                                        {playlists.map(p => (
-                                                            <button
-                                                                key={p._id}
-                                                                onClick={(e) => { e.stopPropagation(); addToPlaylist(p._id, song); }}
-                                                                className="w-full text-left p-2.5 rounded-lg hover:bg-white/5 text-[10px] font-bold uppercase tracking-widest transition-all truncate"
-                                                            >
-                                                                {p.name}
-                                                            </button>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div id={`add-btn-${song.id}`} className="text-blue-500 p-2 font-bold text-lg">
-                                            +
-                                        </div>
+                                        )}
                                     </>
                                 )}
                             </div>
