@@ -1,10 +1,11 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 
 // Hook to manage background playback using Media Session API
 // This enables lock screen controls and keeps playback alive
 export const useBackgroundPlayback = (currentSong, isPlaying, currentTime, duration, onPlayPause, onNext) => {
   const wakeLockRef = useRef(null);
   const mediaSessionRef = useRef(null);
+  const callbacksRef = useRef({ onPlayPause, onNext });
 
   // Request Wake Lock (keeps screen on during playback)
   const requestWakeLock = async () => {
@@ -70,22 +71,18 @@ export const useBackgroundPlayback = (currentSong, isPlaying, currentTime, durat
     try {
       mediaSession.setActionHandler('play', () => {
         console.log('[Media Session] Play button pressed on lock screen');
-        if (onPlayPause) onPlayPause();
+        if (callbacksRef.current?.onPlayPause) callbacksRef.current.onPlayPause();
       });
 
       mediaSession.setActionHandler('pause', () => {
         console.log('[Media Session] Pause button pressed on lock screen');
-        if (onPlayPause) onPlayPause();
+        if (callbacksRef.current?.onPlayPause) callbacksRef.current.onPlayPause();
       });
 
       // Handle next track button
       mediaSession.setActionHandler('nexttrack', () => {
         console.log('[Media Session] Next button pressed on lock screen');
-        if (onNext) onNext();
-      });
-
-      // Handle previous track (optional)
-      mediaSession.setActionHandler('previoustrack', () => {
+        if (callbacksRef.current?.onNext) callbacksRef.current.onNext();
         console.log('[Media Session] Previous button pressed on lock screen');
       });
 
@@ -132,12 +129,16 @@ export const useBackgroundPlayback = (currentSong, isPlaying, currentTime, durat
 
   // Effects
   useEffect(() => {
+    callbacksRef.current = { onPlayPause, onNext };
+  }, [onPlayPause, onNext]);
+
+  useEffect(() => {
     requestBackgroundPlayback();
   }, []);
 
   useEffect(() => {
     setupMediaSession();
-  }, [currentSong, onPlayPause, onNext]);
+  }, [currentSong, isPlaying]);
 
   useEffect(() => {
     updatePositionState();

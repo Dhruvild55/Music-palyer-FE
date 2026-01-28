@@ -49,16 +49,6 @@ const RoomPlayer = () => {
     const timeUpdateRef = useRef(null);
     const shadowAudioRef = useRef(null);
 
-    // Background playback management with Media Session API
-    const { wakeLockActive, mediaSessionReady } = useBackgroundPlayback(
-      currentSong,
-      status.includes("Playing"),
-      currentTime,
-      duration,
-      togglePlayPause, // Pass play/pause callback
-      () => socket.emit("next_song", { roomId: room, userId: user?._id, guestId: currentUserId }) // Pass next callback
-    );
-
     const nickname = user ? user.username : (localStorage.getItem('streamvibe_name') || "Guest");
     const userColor = user ? user.avatarColor : (localStorage.getItem('streamvibe_color') || "#3b82f6");
     const username = nickname;
@@ -356,6 +346,16 @@ const RoomPlayer = () => {
             guestId: currentUserId
         });
     };
+
+    // Setup background playback with Media Session API
+    useBackgroundPlayback(
+        currentSong,
+        status.includes("Playing"),
+        currentTime,
+        duration,
+        togglePlayPause,
+        () => socket.emit("next_song", { roomId: room, userId: user?._id, guestId: currentUserId })
+    );
 
     return (
         <div className="min-h-screen text-slate-200 p-4 md:p-8 animate-fade-in max-w-[1800px] mx-auto overflow-x-hidden">
