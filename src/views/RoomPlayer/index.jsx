@@ -20,29 +20,78 @@ const RemoteScreenVideo = ({ id, stream }) => {
         try {
             videoRef.current.srcObject = stream;
             console.debug('[RemoteScreenVideo] Attached stream to video', id, stream);
+            
+            // Log active tracks
+            const videoTracks = stream.getVideoTracks();
+            const audioTracks = stream.getAudioTracks();
+            console.debug('[RemoteScreenVideo] Stream tracks:', { 
+                videoTracks: videoTracks.length, 
+                audioTracks: audioTracks.length,
+                videoEnabled: videoTracks.length > 0 ? videoTracks[0].enabled : false,
+                audioEnabled: audioTracks.length > 0 ? audioTracks[0].enabled : false
+            });
+            
+            // Force play if autoplay doesn't work
+            const playPromise = videoRef.current.play();
+            if (playPromise !== undefined) {
+                playPromise
+                    .then(() => {
+                        console.debug('[RemoteScreenVideo] Video play started', id);
+                    })
+                    .catch(err => {
+                        console.warn('[RemoteScreenVideo] Autoplay blocked, attempting with muted:', id, err);
+                        // Some browsers require muted to autoplay
+                        videoRef.current.muted = true;
+                        videoRef.current.play().catch(e => {
+                            console.error('[RemoteScreenVideo] Forced play failed:', id, e);
+                        });
+                    });
+            }
         } catch (err) {
             console.error('[RemoteScreenVideo] Failed to attach stream', id, err);
         }
     }, [stream, id]);
 
     return (
-        <div className="card-smooth p-2">
-            <video
-                ref={videoRef}
-                className="w-full h-48 object-contain bg-black rounded"
-                autoPlay
-                playsInline
-                muted={false}
-                onLoadedMetadata={() => {
-                    try { console.debug('[RemoteScreenVideo] Video metadata loaded', id); } catch (e) {}
-                }}
-                onPlay={() => {
-                    try { console.debug('[RemoteScreenVideo] Video playing', id); } catch (e) {}
-                }}
-                onError={(e) => {
-                    try { console.error('[RemoteScreenVideo] Video error', id, e); } catch (err) {}
-                }}
-            />
+        <div className="relative group">
+            {/* Vibrant Border & Shadow */}
+            <div className="bg-gradient-to-br from-purple-500/20 via-blue-500/20 to-cyan-500/20 p-1 rounded-2xl shadow-2xl">
+                <video
+                    ref={videoRef}
+                    className="w-full h-64 object-contain bg-black rounded-xl border-2 border-blue-400"
+                    autoPlay
+                    playsInline
+                    controls={false}
+                    onLoadedMetadata={() => {
+                        try { 
+                            console.debug('[RemoteScreenVideo] onLoadedMetadata fired', id, {
+                                duration: videoRef.current?.duration,
+                                readyState: videoRef.current?.readyState,
+                                paused: videoRef.current?.paused
+                            }); 
+                        } catch (e) {}
+                    }}
+                    onPlay={() => {
+                        try { console.debug('[RemoteScreenVideo] onPlay fired', id); } catch (e) {}
+                    }}
+                    onCanPlay={() => {
+                        try { console.debug('[RemoteScreenVideo] onCanPlay fired', id); } catch (e) {}
+                    }}
+                    onError={(e) => {
+                        try { console.error('[RemoteScreenVideo] Video error', id, e.target?.error); } catch (err) {}
+                    }}
+                />
+            </div>
+            
+            {/* Live Badge */}
+            <div className="absolute top-3 right-3 bg-red-600 text-white px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest shadow-lg">
+                🔴 LIVE
+            </div>
+
+            {/* User ID Label */}
+            <div className="absolute bottom-3 left-3 bg-black/70 backdrop-blur text-cyan-300 px-3 py-2 rounded-lg text-xs font-mono border border-cyan-400/50">
+                ID: {id.substring(0, 8)}...
+            </div>
         </div>
     );
 };
@@ -561,13 +610,24 @@ const RoomPlayer = () => {
                         </div>
 
                         {/* Remote Screenshares */}
-                        <div className="space-y-4 mt-4">
+                        <div className="space-y-6 mt-8 pt-6 border-t border-slate-700">
                             {remoteStreams && Object.entries(remoteStreams).length > 0 && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {Object.entries(remoteStreams).map(([id, stream]) => (
-                                        <RemoteScreenVideo key={id} id={id} stream={stream} />
-                                    ))}
-                                </div>
+                                <>
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-3 h-3 rounded-full bg-gradient-to-r from-purple-500 to-cyan-500 animate-pulse"></div>
+                                        <h3 className="text-lg font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-blue-400 to-cyan-400 uppercase tracking-widest">
+                                            📺 Screen Shares
+                                        </h3>
+                                        <span className="text-xs font-bold text-cyan-400 bg-cyan-400/10 px-2 py-1 rounded-full ml-auto">
+                                            {Object.entries(remoteStreams).length} {Object.entries(remoteStreams).length === 1 ? 'Stream' : 'Streams'}
+                                        </span>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        {Object.entries(remoteStreams).map(([id, stream]) => (
+                                            <RemoteScreenVideo key={id} id={id} stream={stream} />
+                                        ))}
+                                    </div>
+                                </>
                             )}
                         </div>
                     </div>
