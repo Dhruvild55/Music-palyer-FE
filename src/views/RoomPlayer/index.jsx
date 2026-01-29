@@ -12,7 +12,7 @@ import useBackgroundPlayback from "../../hooks/useBackgroundPlayback";
 import useScreenShare from "../../hooks/useScreenShare";
 
 // Helper component to properly attach remote stream to video element
-const RemoteScreenVideo = ({ id, stream }) => {
+const RemoteScreenVideo = ({ id, stream, isFocused = false, onClick = () => {} }) => {
     const videoRef = useRef(null);
 
     useEffect(() => {
@@ -52,13 +52,15 @@ const RemoteScreenVideo = ({ id, stream }) => {
         }
     }, [stream, id]);
 
+    const wrapperClasses = `relative group cursor-pointer ${isFocused ? 'md:col-span-2' : ''}`;
+
     return (
-        <div className="relative group">
+        <div className={wrapperClasses} onClick={() => onClick(id)}>
             {/* Vibrant Border & Shadow */}
             <div className="bg-gradient-to-br from-purple-500/20 via-blue-500/20 to-cyan-500/20 p-1 rounded-2xl shadow-2xl">
                 <video
                     ref={videoRef}
-                    className="w-full h-64 object-contain bg-black rounded-xl border-2 border-blue-400"
+                    className={`w-full ${isFocused ? 'h-[560px]' : 'h-64'} object-contain bg-black rounded-xl border-2 border-blue-400`}
                     autoPlay
                     playsInline
                     controls={false}
@@ -94,6 +96,25 @@ const RemoteScreenVideo = ({ id, stream }) => {
             </div>
         </div>
     );
+};
+
+// Local preview component for presenter's camera
+const LocalPreviewVideo = ({ stream }) => {
+    const ref = useRef(null);
+
+    useEffect(() => {
+        if (!ref.current || !stream) return;
+        try {
+            ref.current.srcObject = stream;
+            ref.current.muted = true;
+            const p = ref.current.play();
+            if (p && p.catch) p.catch(() => {});
+        } catch (e) {
+            console.error('[LocalPreviewVideo] attach failed', e);
+        }
+    }, [stream]);
+
+    return <video ref={ref} className="w-full h-full object-cover" playsInline />;
 };
 
 const RoomPlayer = () => {
@@ -134,6 +155,9 @@ const RoomPlayer = () => {
     const [creatorId, setCreatorId] = useState(null);
     const timeUpdateRef = useRef(null);
     const shadowAudioRef = useRef(null);
+
+    // Focused share id (click a stream to enlarge)
+    const [focusedShare, setFocusedShare] = useState(null);
 
     const nickname = user ? user.username : (localStorage.getItem('streamvibe_name') || "Guest");
     const userColor = user ? user.avatarColor : (localStorage.getItem('streamvibe_color') || "#3b82f6");
@@ -443,7 +467,8 @@ const RoomPlayer = () => {
         () => socket.emit("next_song", { roomId: room, userId: user?._id, guestId: currentUserId })
     );
 
-    const { isSharing, startShare, stopShare, remoteStreams } = useScreenShare(room, listeners);
+    const { isSharing, startShare, stopShare, remoteStreams, localPreview } = useScreenShare(room, listeners);
+    const [includeCam, setIncludeCam] = useState(false);
 
     return (
         <div className="min-h-screen text-slate-200 p-4 md:p-8 animate-fade-in max-w-[1800px] mx-auto overflow-x-hidden">
@@ -588,7 +613,14 @@ const RoomPlayer = () => {
                                     <button onClick={handleShare} className="ml-auto card-smooth p-3 rounded-xl hover:bg-white/5 opacity-40 hover:opacity-100">
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
                                     </button>
-                                    <button onClick={() => isSharing ? stopShare() : startShare()} className="card-smooth p-3 rounded-xl hover:bg-white/5 ml-2">
+                                    <button onClick={() => setIncludeCam(!includeCam)} className={`card-smooth p-3 rounded-xl hover:bg-white/5 ml-2 ${includeCam ? 'bg-white/5 ring-2 ring-cyan-400' : ''}`} title="Include Camera">
+                                        {includeCam ? (
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-cyan-300" viewBox="0 0 24 24" fill="currentColor"><path d="M4 5h4l2-2h4l2 2h4v14H4z"/></svg>
+                                        ) : (
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M4 5h4l2-2h4l2 2h4v14H4z"/></svg>
+                                        )}
+                                    </button>
+                                    <button onClick={() => isSharing ? stopShare() : startShare({ withCamera: includeCam })} className="card-smooth p-3 rounded-xl hover:bg-white/5 ml-2">
                                         {isSharing ? (
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-red-400" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h12v12H6z" /></svg>
                                         ) : (
@@ -609,6 +641,13 @@ const RoomPlayer = () => {
                             {currentSong && <YouTube videoId={currentSong.id} opts={{ playerVars: { autoplay: 1, controls: 0 } }} onReady={onPlayerReady} onStateChange={handlePlayerStateChange} />}
                         </div>
 
+                        {/* Local Camera Preview (PiP) */}
+                        {localPreview && (
+                            <div className="absolute bottom-6 right-6 w-36 h-20 rounded-xl overflow-hidden border-2 border-white/10 shadow-2xl bg-black/60">
+                                <LocalPreviewVideo stream={localPreview} />
+                            </div>
+                        )}
+
                         {/* Remote Screenshares */}
                         <div className="space-y-6 mt-8 pt-6 border-t border-slate-700">
                             {remoteStreams && Object.entries(remoteStreams).length > 0 && (
@@ -623,9 +662,24 @@ const RoomPlayer = () => {
                                         </span>
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        {Object.entries(remoteStreams).map(([id, stream]) => (
-                                            <RemoteScreenVideo key={id} id={id} stream={stream} />
-                                        ))}
+                                        {(() => {
+                                            const entries = Object.entries(remoteStreams);
+                                            if (!entries.length) return null;
+                                            // If a focusedShare exists and is in streams, render it first
+                                            const ordered = focusedShare && remoteStreams[focusedShare]
+                                                ? [[focusedShare, remoteStreams[focusedShare]], ...entries.filter(([id]) => id !== focusedShare)]
+                                                : entries;
+
+                                            return ordered.map(([id, stream]) => (
+                                                <RemoteScreenVideo
+                                                    key={id}
+                                                    id={id}
+                                                    stream={stream}
+                                                    isFocused={focusedShare === id}
+                                                    onClick={(clickedId) => setFocusedShare(focusedShare === clickedId ? null : clickedId)}
+                                                />
+                                            ));
+                                        })()}
                                     </div>
                                 </>
                             )}
@@ -654,7 +708,10 @@ const RoomPlayer = () => {
                                         <div className="flex-1 min-w-0">
                                             <p className="text-xs font-bold text-slate-200 truncate group-hover:text-white">{user.name}</p>
                                             <p className="text-[10px] text-slate-600 uppercase font-black tracking-widest">
-                                                {user.userId ? 'User' : 'Guest'}
+                                                {user.userId  
+                                                    
+                                                    
+                                                    ? 'User' : 'Guest'}
                                             </p>
                                         </div>
                                     </Link>

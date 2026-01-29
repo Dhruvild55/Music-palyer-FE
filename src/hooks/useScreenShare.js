@@ -34,6 +34,7 @@ export default function useScreenShare(roomId, listeners) {
         console.debug('[useScreenShare] RTC_CONFIG', RTC_CONFIG);
     } catch (e) {}
     const [isSharing, setIsSharing] = useState(false);
+    const [localPreview, setLocalPreview] = useState(null);
     const [remoteStreams, setRemoteStreams] = useState({}); // { socketId: MediaStream }
 
     useEffect(() => {
@@ -168,10 +169,24 @@ export default function useScreenShare(roomId, listeners) {
         socket.emit('screenshare-offer', { roomId, to: targetId, sdp: pc.localDescription });
     };
 
-    const startShare = async () => {
+    const startShare = async (opts = { withCamera: false }) => {
         try {
             // Ask for display media with audio when supported (Chrome can capture system/tab audio)
             const displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+
+            // Optionally add camera video track
+            if (opts.withCamera) {
+                try {
+                    const camStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                    // Add camera video track(s) to the display stream so peers receive both
+                    camStream.getVideoTracks().forEach(t => displayStream.addTrack(t));
+                    // Create a local preview stream from the camera tracks only
+                    const preview = new MediaStream(camStream.getVideoTracks());
+                    setLocalPreview(preview);
+                } catch (e) {
+                    console.warn('Camera capture failed', e);
+                }
+            }
 
             // If displayStream has no audio (browser didn't provide system audio), try to get microphone audio as fallback
             if (displayStream.getAudioTracks().length === 0) {
@@ -210,6 +225,10 @@ export default function useScreenShare(roomId, listeners) {
                 localStreamRef.current.getTracks().forEach(t => t.stop());
                 localStreamRef.current = null;
             }
+            if (localPreview) {
+                try { localPreview.getTracks().forEach(t => t.stop()); } catch (e) {}
+                setLocalPreview(null);
+            }
             Object.values(pcsRef.current).forEach(pc => { try { pc.close(); } catch (e) {} });
             pcsRef.current = {};
             setIsSharing(false);
@@ -219,5 +238,5 @@ export default function useScreenShare(roomId, listeners) {
         }
     };
 
-    return { isSharing, startShare, stopShare, remoteStreams };
+    return { isSharing, startShare, stopShare, remoteStreams, localPreview };
 }
