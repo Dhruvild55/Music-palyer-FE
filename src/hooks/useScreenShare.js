@@ -5,6 +5,29 @@ export default function useScreenShare(roomId, listeners) {
     const socket = useSocket();
     const pcsRef = useRef({}); // peer connections keyed by remote socket id
     const localStreamRef = useRef(null);
+    // Build RTC config from env (supports VITE_ICE_SERVERS as JSON or single TURN vars)
+    const getIceServers = () => {
+        try {
+            const raw = import.meta.env.VITE_ICE_SERVERS;
+            if (raw) {
+                // allow JSON string or simple semicolon-separated STUN/TURN URLs
+                try { return JSON.parse(raw); } catch (e) {}
+                return [{ urls: raw }];
+            }
+
+            const turnUrl = import.meta.env.VITE_TURN_URL;
+            const turnUser = import.meta.env.VITE_TURN_USERNAME || import.meta.env.VITE_TURN_USER;
+            const turnPass = import.meta.env.VITE_TURN_PASSWORD || import.meta.env.VITE_TURN_PASS;
+            if (turnUrl) {
+                const creds = turnUser && turnPass ? { username: turnUser, credential: turnPass } : {};
+                return [{ urls: turnUrl, ...creds }, { urls: 'stun:stun.l.google.com:19302' }];
+            }
+        } catch (err) {
+            console.warn('Failed to parse ICE servers from env', err);
+        }
+        return [{ urls: 'stun:stun.l.google.com:19302' }];
+    };
+    const RTC_CONFIG = { iceServers: getIceServers() };
     const [isSharing, setIsSharing] = useState(false);
     const [remoteStreams, setRemoteStreams] = useState({}); // { socketId: MediaStream }
 
@@ -14,7 +37,7 @@ export default function useScreenShare(roomId, listeners) {
         const handleOffer = async ({ from, sdp }) => {
             try {
                 if (from === socket.id) return;
-                const pc = new RTCPeerConnection();
+                const pc = new RTCPeerConnection(RTC_CONFIG);
 
                 pc.ontrack = (ev) => {
                     setRemoteStreams(prev => ({ ...prev, [from]: ev.streams[0] }));
@@ -101,9 +124,9 @@ export default function useScreenShare(roomId, listeners) {
 
     }, [listeners]);
 
-    const createOfferTo = async (targetId) => {
+        const createOfferTo = async (targetId) => {
         if (!localStreamRef.current) return;
-        const pc = new RTCPeerConnection();
+        const pc = new RTCPeerConnection(RTC_CONFIG);
 
         pc.onicecandidate = (e) => {
             if (e.candidate) socket.emit('screenshare-candidate', { roomId, to: targetId, candidate: e.candidate });
