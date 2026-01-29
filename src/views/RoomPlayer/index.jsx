@@ -9,6 +9,7 @@ import Queue from "./Queue";
 import DJPermissionsPanel from "../../components/DJPermissionsPanel";
 import SongRequestsTab from "./SongRequests";
 import useBackgroundPlayback from "../../hooks/useBackgroundPlayback";
+import useScreenShare from "../../hooks/useScreenShare";
 
 const RoomPlayer = () => {
     const { roomId } = useParams();
@@ -357,6 +358,8 @@ const RoomPlayer = () => {
         () => socket.emit("next_song", { roomId: room, userId: user?._id, guestId: currentUserId })
     );
 
+    const { isSharing, startShare, stopShare, remoteStreams } = useScreenShare(room, listeners);
+
     return (
         <div className="min-h-screen text-slate-200 p-4 md:p-8 animate-fade-in max-w-[1800px] mx-auto overflow-x-hidden">
             {/* Simple Reactions Overlay */}
@@ -500,6 +503,13 @@ const RoomPlayer = () => {
                                     <button onClick={handleShare} className="ml-auto card-smooth p-3 rounded-xl hover:bg-white/5 opacity-40 hover:opacity-100">
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
                                     </button>
+                                    <button onClick={() => isSharing ? stopShare() : startShare()} className="card-smooth p-3 rounded-xl hover:bg-white/5 ml-2">
+                                        {isSharing ? (
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-red-400" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h12v12H6z" /></svg>
+                                        ) : (
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14v-4zM3 6h8v12H3z" /></svg>
+                                        )}
+                                    </button>
                                     {isDJ && (
                                         <button onClick={handleDeleteRoom} className="card-smooth p-3 rounded-xl text-red-500 hover:bg-red-500/10 opacity-40 hover:opacity-100">
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
@@ -512,6 +522,24 @@ const RoomPlayer = () => {
                         {/* Hidden Player */}
                         <div className="absolute opacity-0 pointer-events-none -z-50 overflow-hidden w-0 h-0">
                             {currentSong && <YouTube videoId={currentSong.id} opts={{ playerVars: { autoplay: 1, controls: 0 } }} onReady={onPlayerReady} onStateChange={handlePlayerStateChange} />}
+                        </div>
+
+                        {/* Remote Screenshares */}
+                        <div className="space-y-4 mt-4">
+                            {remoteStreams && Object.entries(remoteStreams).length > 0 && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {Object.entries(remoteStreams).map(([id, stream]) => (
+                                        <div key={id} className="card-smooth p-2">
+                                            <video
+                                                className="w-full h-48 object-contain bg-black"
+                                                autoPlay
+                                                playsInline
+                                                ref={(el) => { if (el && stream) { try { el.srcObject = stream; } catch (e) {} } }}
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
 
