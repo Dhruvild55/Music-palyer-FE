@@ -11,6 +11,42 @@ import SongRequestsTab from "./SongRequests";
 import useBackgroundPlayback from "../../hooks/useBackgroundPlayback";
 import useScreenShare from "../../hooks/useScreenShare";
 
+// Helper component to properly attach remote stream to video element
+const RemoteScreenVideo = ({ id, stream }) => {
+    const videoRef = useRef(null);
+
+    useEffect(() => {
+        if (!videoRef.current || !stream) return;
+        try {
+            videoRef.current.srcObject = stream;
+            console.debug('[RemoteScreenVideo] Attached stream to video', id, stream);
+        } catch (err) {
+            console.error('[RemoteScreenVideo] Failed to attach stream', id, err);
+        }
+    }, [stream, id]);
+
+    return (
+        <div className="card-smooth p-2">
+            <video
+                ref={videoRef}
+                className="w-full h-48 object-contain bg-black rounded"
+                autoPlay
+                playsInline
+                muted={false}
+                onLoadedMetadata={() => {
+                    try { console.debug('[RemoteScreenVideo] Video metadata loaded', id); } catch (e) {}
+                }}
+                onPlay={() => {
+                    try { console.debug('[RemoteScreenVideo] Video playing', id); } catch (e) {}
+                }}
+                onError={(e) => {
+                    try { console.error('[RemoteScreenVideo] Video error', id, e); } catch (err) {}
+                }}
+            />
+        </div>
+    );
+};
+
 const RoomPlayer = () => {
     const { roomId } = useParams();
     const navigate = useNavigate();
@@ -529,14 +565,7 @@ const RoomPlayer = () => {
                             {remoteStreams && Object.entries(remoteStreams).length > 0 && (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {Object.entries(remoteStreams).map(([id, stream]) => (
-                                        <div key={id} className="card-smooth p-2">
-                                            <video
-                                                className="w-full h-48 object-contain bg-black"
-                                                autoPlay
-                                                playsInline
-                                                ref={(el) => { if (el && stream) { try { el.srcObject = stream; } catch (e) {} } }}
-                                            />
-                                        </div>
+                                        <RemoteScreenVideo key={id} id={id} stream={stream} />
                                     ))}
                                 </div>
                             )}
