@@ -28,6 +28,11 @@ export default function useScreenShare(roomId, listeners) {
         return [{ urls: 'stun:stun.l.google.com:19302' }];
     };
     const RTC_CONFIG = { iceServers: getIceServers() };
+    // Debug: show which ICE servers are being used
+    try {
+        // eslint-disable-next-line no-console
+        console.debug('[useScreenShare] RTC_CONFIG', RTC_CONFIG);
+    } catch (e) {}
     const [isSharing, setIsSharing] = useState(false);
     const [remoteStreams, setRemoteStreams] = useState({}); // { socketId: MediaStream }
 
@@ -39,7 +44,16 @@ export default function useScreenShare(roomId, listeners) {
                 if (from === socket.id) return;
                 const pc = new RTCPeerConnection(RTC_CONFIG);
 
+                pc.oniceconnectionstatechange = () => {
+                    try { console.debug('[useScreenShare] oniceconnectionstatechange', from, pc.iceConnectionState); } catch (e) {}
+                };
+                pc.onicecandidate = (e) => {
+                    try { console.debug('[useScreenShare] onicecandidate (incoming answer side)', from, e.candidate); } catch (e) {}
+                    if (e.candidate) socket.emit('screenshare-candidate', { roomId, to: from, candidate: e.candidate });
+                };
+
                 pc.ontrack = (ev) => {
+                    try { console.debug('[useScreenShare] ontrack received from', from, ev.streams); } catch (e) {}
                     setRemoteStreams(prev => ({ ...prev, [from]: ev.streams[0] }));
                 };
 
@@ -128,15 +142,21 @@ export default function useScreenShare(roomId, listeners) {
         if (!localStreamRef.current) return;
         const pc = new RTCPeerConnection(RTC_CONFIG);
 
+        pc.oniceconnectionstatechange = () => {
+            try { console.debug('[useScreenShare] oniceconnectionstatechange (offerer)', targetId, pc.iceConnectionState); } catch (e) {}
+            if (pc.iceConnectionState === 'failed') {
+                try { console.warn('[useScreenShare] ICE failed for', targetId); } catch (e) {}
+            }
+        };
+
         pc.onicecandidate = (e) => {
+            try { console.debug('[useScreenShare] onicecandidate (offerer)', targetId, e.candidate); } catch (e) {}
             if (e.candidate) socket.emit('screenshare-candidate', { roomId, to: targetId, candidate: e.candidate });
         };
 
-        pc.onconnectionstatechange = () => {
-            if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
-                try { pc.close(); } catch (e) {}
-                delete pcsRef.current[targetId];
-            }
+        pc.ontrack = (ev) => {
+            try { console.debug('[useScreenShare] ontrack (offerer) from', targetId, ev.streams); } catch (e) {}
+            setRemoteStreams(prev => ({ ...prev, [targetId]: ev.streams[0] }));
         };
 
         localStreamRef.current.getTracks().forEach(track => pc.addTrack(track, localStreamRef.current));
