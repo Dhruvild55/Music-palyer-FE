@@ -12,7 +12,7 @@ import useBackgroundPlayback from "../../hooks/useBackgroundPlayback";
 import useScreenShare from "../../hooks/useScreenShare";
 
 // Helper component to properly attach remote stream to video element
-const RemoteScreenVideo = ({ id, stream, isFocused = false, onClick = () => {} }) => {
+const RemoteScreenVideo = ({ id, stream, isFocused = false, onClick = () => { } }) => {
     const videoRef = useRef(null);
 
     useEffect(() => {
@@ -20,17 +20,17 @@ const RemoteScreenVideo = ({ id, stream, isFocused = false, onClick = () => {} }
         try {
             videoRef.current.srcObject = stream;
             console.debug('[RemoteScreenVideo] Attached stream to video', id, stream);
-            
+
             // Log active tracks
             const videoTracks = stream.getVideoTracks();
             const audioTracks = stream.getAudioTracks();
-            console.debug('[RemoteScreenVideo] Stream tracks:', { 
-                videoTracks: videoTracks.length, 
+            console.debug('[RemoteScreenVideo] Stream tracks:', {
+                videoTracks: videoTracks.length,
                 audioTracks: audioTracks.length,
                 videoEnabled: videoTracks.length > 0 ? videoTracks[0].enabled : false,
                 audioEnabled: audioTracks.length > 0 ? audioTracks[0].enabled : false
             });
-            
+
             // Force play if autoplay doesn't work
             const playPromise = videoRef.current.play();
             if (playPromise !== undefined) {
@@ -65,26 +65,26 @@ const RemoteScreenVideo = ({ id, stream, isFocused = false, onClick = () => {} }
                     playsInline
                     controls={false}
                     onLoadedMetadata={() => {
-                        try { 
+                        try {
                             console.debug('[RemoteScreenVideo] onLoadedMetadata fired', id, {
                                 duration: videoRef.current?.duration,
                                 readyState: videoRef.current?.readyState,
                                 paused: videoRef.current?.paused
-                            }); 
-                        } catch (e) {}
+                            });
+                        } catch (e) { }
                     }}
                     onPlay={() => {
-                        try { console.debug('[RemoteScreenVideo] onPlay fired', id); } catch (e) {}
+                        try { console.debug('[RemoteScreenVideo] onPlay fired', id); } catch (e) { }
                     }}
                     onCanPlay={() => {
-                        try { console.debug('[RemoteScreenVideo] onCanPlay fired', id); } catch (e) {}
+                        try { console.debug('[RemoteScreenVideo] onCanPlay fired', id); } catch (e) { }
                     }}
                     onError={(e) => {
-                        try { console.error('[RemoteScreenVideo] Video error', id, e.target?.error); } catch (err) {}
+                        try { console.error('[RemoteScreenVideo] Video error', id, e.target?.error); } catch (err) { }
                     }}
                 />
             </div>
-            
+
             {/* Live Badge */}
             <div className="absolute top-3 right-3 bg-red-600 text-white px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest shadow-lg">
                 🔴 LIVE
@@ -108,7 +108,7 @@ const LocalPreviewVideo = ({ stream }) => {
             ref.current.srcObject = stream;
             ref.current.muted = true;
             const p = ref.current.play();
-            if (p && p.catch) p.catch(() => {});
+            if (p && p.catch) p.catch(() => { });
         } catch (e) {
             console.error('[LocalPreviewVideo] attach failed', e);
         }
@@ -183,7 +183,7 @@ const RoomPlayer = () => {
 
             // Check if current user is a DJ (either creator or has djPermissions)
             const isUserDJ = (state.creatorId && String(state.creatorId) === String(currentUserId)) ||
-                           (state.djPermissions && state.djPermissions.includes(currentUserId));
+                (state.djPermissions && state.djPermissions.includes(currentUserId));
             setIsDJ(isUserDJ);
 
             if (state.currentTime > 0 && playerRef.current && typeof playerRef.current.seekTo === 'function') {
@@ -207,7 +207,7 @@ const RoomPlayer = () => {
         socket.on('join_failed', (data) => {
             const message = data?.message || 'Failed to join room.';
             console.error('[JoinFailed]', message);
-            
+
             // Show error and redirect to home
             alert(message);
             navigate('/');
@@ -271,7 +271,7 @@ const RoomPlayer = () => {
             setDjPermissions(data.djPermissions || []);
             // Update isDJ status based on new permissions
             const isUserDJ = (creatorId && String(creatorId) === String(currentUserId)) ||
-                           (data.djPermissions && data.djPermissions.includes(currentUserId));
+                (data.djPermissions && data.djPermissions.includes(currentUserId));
             setIsDJ(isUserDJ);
         });
 
@@ -613,20 +613,20 @@ const RoomPlayer = () => {
                                     <button onClick={handleShare} className="ml-auto card-smooth p-3 rounded-xl hover:bg-white/5 opacity-40 hover:opacity-100">
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
                                     </button>
-                                    <button onClick={() => setIncludeCam(!includeCam)} className={`card-smooth p-3 rounded-xl hover:bg-white/5 ml-2 ${includeCam ? 'bg-white/5 ring-2 ring-cyan-400' : ''}`} title="Include Camera">
+                                    {/* <button onClick={() => setIncludeCam(!includeCam)} className={`card-smooth p-3 rounded-xl hover:bg-white/5 ml-2 ${includeCam ? 'bg-white/5 ring-2 ring-cyan-400' : ''}`} title="Include Camera">
                                         {includeCam ? (
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-cyan-300" viewBox="0 0 24 24" fill="currentColor"><path d="M4 5h4l2-2h4l2 2h4v14H4z"/></svg>
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-cyan-300" viewBox="0 0 24 24" fill="currentColor"><path d="M4 5h4l2-2h4l2 2h4v14H4z" /></svg>
                                         ) : (
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M4 5h4l2-2h4l2 2h4v14H4z"/></svg>
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M4 5h4l2-2h4l2 2h4v14H4z" /></svg>
                                         )}
-                                    </button>
-                                    <button onClick={() => isSharing ? stopShare() : startShare({ withCamera: includeCam })} className="card-smooth p-3 rounded-xl hover:bg-white/5 ml-2">
+                                    </button> */}
+                                    {/* <button onClick={() => isSharing ? stopShare() : startShare({ withCamera: includeCam })} className="card-smooth p-3 rounded-xl hover:bg-white/5 ml-2">
                                         {isSharing ? (
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-red-400" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h12v12H6z" /></svg>
                                         ) : (
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14v-4zM3 6h8v12H3z" /></svg>
                                         )}
-                                    </button>
+                                    </button> */}
                                     {isDJ && (
                                         <button onClick={handleDeleteRoom} className="card-smooth p-3 rounded-xl text-red-500 hover:bg-red-500/10 opacity-40 hover:opacity-100">
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
@@ -642,14 +642,14 @@ const RoomPlayer = () => {
                         </div>
 
                         {/* Local Camera Preview (PiP) */}
-                        {localPreview && (
+                        {/* {localPreview && (
                             <div className="absolute bottom-6 right-6 w-36 h-20 rounded-xl overflow-hidden border-2 border-white/10 shadow-2xl bg-black/60">
                                 <LocalPreviewVideo stream={localPreview} />
                             </div>
-                        )}
+                        )} */}
 
                         {/* Remote Screenshares */}
-                        <div className="space-y-6 mt-8 pt-6 border-t border-slate-700">
+                        {/* <div className="space-y-6 mt-8 pt-6 border-t border-slate-700">
                             {remoteStreams && Object.entries(remoteStreams).length > 0 && (
                                 <>
                                     <div className="flex items-center gap-3">
@@ -683,7 +683,7 @@ const RoomPlayer = () => {
                                     </div>
                                 </>
                             )}
-                        </div>
+                        </div> */}
                     </div>
 
                     {/* Listeners Info */}
@@ -708,9 +708,9 @@ const RoomPlayer = () => {
                                         <div className="flex-1 min-w-0">
                                             <p className="text-xs font-bold text-slate-200 truncate group-hover:text-white">{user.name}</p>
                                             <p className="text-[10px] text-slate-600 uppercase font-black tracking-widest">
-                                                {user.userId  
-                                                    
-                                                    
+                                                {user.userId
+
+
                                                     ? 'User' : 'Guest'}
                                             </p>
                                         </div>
@@ -735,11 +735,11 @@ const RoomPlayer = () => {
                         socket={socket}
                         user={user}
                     />
-                    <SongRequestsTab 
-                        songRequests={songRequests} 
-                        isDJ={isDJ} 
-                        onAcceptRequest={handleAcceptRequest} 
-                        onDeclineRequest={handleDeclineRequest} 
+                    <SongRequestsTab
+                        songRequests={songRequests}
+                        isDJ={isDJ}
+                        onAcceptRequest={handleAcceptRequest}
+                        onDeclineRequest={handleDeclineRequest}
                         onRequestSong={handleRequestSong}
                         currentSong={currentSong}
                         queue={queue}
